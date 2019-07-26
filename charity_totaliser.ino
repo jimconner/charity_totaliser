@@ -1,5 +1,6 @@
 #include <Adafruit_NeoPixel.h>
 #include <TM1638plus.h>
+#include <EEPROM.h>
 #ifdef __AVR__
  #include <avr/power.h> // Required for 16 MHz Adafruit Trinket
 #endif
@@ -40,7 +41,7 @@ int christmasSeedValue = 0;
 char display_buffer[9];
 
 uint8_t digits[] = { 0x3F, 0x21, 0x76, 0x73, 0x69, 0x5B, 0x5F, 0x31, 0x7F, 0x7B};
-int current_value[5]={5,2,3,4,5};
+int current_value[5]={0,0,0,0,0};
 String default_display=" HELLO  ";
 uint8_t last_button_state = 0x00;
 bool updatedisplay=false;
@@ -49,42 +50,46 @@ unsigned long last_valid_button_press=0;
 unsigned long colourCycleTime=0;
 
 class BrightnessProcessor{
-  int brightness_values[BRIGHTNESS_ARRAY_LEN] = { 25, 50, 75, 100, 125, 150, 175, 200, 225, 250 };
-  int current_brightness_index;
+  int brightness_increment = 10;
+  int min_brightness = 0;
+  int max_brightness = 100;
+  int current_brightness_percent = 30;
 
   public:
-    void setup(int index) {
-      current_brightness_index=index;
+    void setup(int percent) {
+      current_brightness_percent=percent;
     }
 
     void setNextBrightness() {
-      if (current_brightness_index == (BRIGHTNESS_ARRAY_LEN-1)) {
-        current_brightness_index=0;
-      } else {
-        current_brightness_index++;
+      current_brightness_percent+=brightness_increment;
+      if (current_brightness_percent > max_brightness) {
+        current_brightness_percent = min_brightness;
       }
-      strip.setBrightness(brightness_values[current_brightness_index]);
+      strip.setBrightness(getBrightness());
     }
 
     void setPreviousBrightness() {
-      if (current_brightness_index == 0) {
-        current_brightness_index=(BRIGHTNESS_ARRAY_LEN-1);
-      } else {
-        current_brightness_index--;
+      current_brightness_percent-=brightness_increment;
+      if (current_brightness_percent < min_brightness) {
+        current_brightness_percent=max_brightness;
       }
-      strip.setBrightness(brightness_values[current_brightness_index]);
+      strip.setBrightness(getBrightness());
     }
 
     String getBrightnessName() {
-      String brightnessAsString=String(int(brightness_values[current_brightness_index]/2.5));
+      String brightnessAsString=String(current_brightness_percent);
       for (int i=brightnessAsString.length(); i<3; i++) {
         brightnessAsString=" "+brightnessAsString;
       }
       return "BHt  " + brightnessAsString;
     }
 
-    int getBrightness(int ledPosition) {
-      return brightness_values[current_brightness_index];
+    int getBrightnessPercent() {
+      return current_brightness_percent;
+    }
+
+    int getBrightness() {
+      return current_brightness_percent*2.5;
     }
 };
 BrightnessProcessor brightnessProcessor;
@@ -97,8 +102,8 @@ class ColourProcessor{
   bool rainbow = false;
   
   public:
-    void setup(int colour) {
-      current_colour_index=colour;
+    void setup(int colour_index) {
+      current_colour_index=colour_index;
     }
 
     void setNextColour() {
@@ -119,6 +124,10 @@ class ColourProcessor{
 
     String getColourName() {
       return "COL  "+colour_name[current_colour_index];
+    }
+
+    int getColourIndex() {
+      return current_colour_index;
     }
 
     uint32_t getColour(int ledPosition, unsigned long time_now) {
@@ -151,26 +160,48 @@ void setup() {
   clock_prescale_set(clock_div_1);
 #endif
   // END of Trinket-specific code.
-  Serial.begin(9600); // Initialise for debug
+  loadData();                         // load data from the eeprom
+  Serial.begin(9600);             // Initialise for debug
   firstPixelHue = 0;              // 
-  brightnessProcessor.setup(3);   // Set default starting brightness
-  colourProcessor.setup(0);       // Set default starting colour
   strip.begin();                  // INITIALIZE NeoPixel strip object (REQUIRED)
-  strip.show();                   // Turn OFF all pixels ASAP
-  strip.setBrightness(brightnessProcessor.getBrightness(0)); // Set BRIGHTNESS to about 1/5 (max = 255)
+  strip.setBrightness(brightnessProcessor.getBrightness());  
   tm.setLED(0, 1);
   tm.reset();
   default_display.toCharArray(display_buffer, 9);
   tm.displayText(display_buffer);
-  // Set default text and show the number in default colour
-  strip.show();                          //  Update strip to match
+}
+
+void loadData() {
+  if (EEPROM.length() >=6) {
+    current_value[0]=EEPROM.read(0);
+    current_value[1]=EEPROM.read(1);
+    current_value[2]=EEPROM.read(2);
+    current_value[3]=EEPROM.read(3);
+    current_value[4]=EEPROM.read(4);
+    brightnessProcessor.setup(EEPROM.read(5));
+    colourProcessor.setup(EEPROM.read(6));
+  } else {
+    brightnessProcessor.setup(30);  // Set default starting brightness
+    colourProcessor.setup(0);       // Set default starting colour
+  }
+}
+
+void saveData() {
+  EEPROM.write(0,current_value[0]);
+  EEPROM.write(1,current_value[1]);
+  EEPROM.write(2,current_value[2]);
+  EEPROM.write(3,current_value[3]);
+  EEPROM.write(4,current_value[4]);
+  EEPROM.write(5,brightnessProcessor.getBrightnessPercent());
+  EEPROM.write(6,colourProcessor.getColourIndex());
 }
 
 void loop() {
   unsigned long time_now = millis();  // used for input lag and christmas colour cycle
   processTM1638(time_now);            // Process user input from the TM1638
-  displayStrip(time_now);                     // Display the stuff on the things
+  displayStrip(time_now);             // Display the stuff on the things
   firstPixelHue += 200;               // Advance just a little along the color wheel for Pride  
+  saveData();                         // Save data to the eeprom
 }
 
 void processTM1638(unsigned long time_now) {
