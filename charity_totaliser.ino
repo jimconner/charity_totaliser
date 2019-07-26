@@ -1,6 +1,6 @@
 #include <Adafruit_NeoPixel.h>
 #include <TM1638plus.h>
-#ifdef _AVR_
+#ifdef __AVR__
  #include <avr/power.h> // Required for 16 MHz Adafruit Trinket
 #endif
 
@@ -17,9 +17,8 @@
 #define DIGIT_COUNT       1
 #define LED_COUNT LEDS_IN_SEGMENT * SEGMENTS_IN_DIGIT * DIGIT_COUNT
 
-// NeoPixel brightness, 0 (min) to 255 (max)
-#define COLOUR_ARRAY_LEN 6
-#define BRIGHTNESS_ARRAY_LEN 6
+#define COLOUR_ARRAY_LEN 10
+#define BRIGHTNESS_ARRAY_LEN 10
 
 //Constructor object
 TM1638plus tm(STROBE_TM, CLOCK_TM , DIO_TM);
@@ -37,20 +36,22 @@ Adafruit_NeoPixel strip(LED_COUNT, LED_PIN, NEO_GRBW + NEO_KHZ800);
 
 uint32_t ledColour;
 uint32_t firstPixelHue;
+int christmasSeedValue = 0;
 char display_buffer[9];
 
 uint8_t digits[] = { 0x3F, 0x21, 0x76, 0x73, 0x69, 0x5B, 0x5F, 0x31, 0x7F, 0x7B};
 int current_value[5]={5,2,3,4,5};
-String default_display=" FIL 30 ";
+String default_display=" HELLO  ";
 uint8_t last_button_state = 0x00;
 bool updatedisplay=false;
 int menu_mode=0;
 unsigned long last_valid_button_press=0;
+unsigned long colourCycleTime=0;
 
 class BrightnessProcessor{
-  int brightness_values[BRIGHTNESS_ARRAY_LEN] = { 0, 10, 50, 100, 150, 200 };
-  int current_brightness_index=1;
-  
+  int brightness_values[BRIGHTNESS_ARRAY_LEN] = { 25, 50, 75, 100, 125, 150, 175, 200, 225, 250 };
+  int current_brightness_index;
+
   public:
     void setup(int index) {
       current_brightness_index=index;
@@ -75,11 +76,11 @@ class BrightnessProcessor{
     }
 
     String getBrightnessName() {
-      String brightnessAsString=String(brightness_values[current_brightness_index]);
+      String brightnessAsString=String(int(brightness_values[current_brightness_index]/2.5));
       for (int i=brightnessAsString.length(); i<3; i++) {
         brightnessAsString=" "+brightnessAsString;
       }
-      return brightnessAsString+"   ud";
+      return "BHt  " + brightnessAsString;
     }
 
     int getBrightness(int ledPosition) {
@@ -89,8 +90,8 @@ class BrightnessProcessor{
 BrightnessProcessor brightnessProcessor;
 
 class ColourProcessor{
-  String colour_name[COLOUR_ARRAY_LEN] = { "red", "grn", "blu", "wht", "bwt", "prd" };
-  uint32_t strip_colour[COLOUR_ARRAY_LEN] = { strip.Color(255,0,0), strip.Color(0,255,0), strip.Color(0,0,255), strip.Color(255,255,255), strip.Color(0,0,0,255), 0x00 };
+  String colour_name[COLOUR_ARRAY_LEN] = { "RED", "GRE", "BLU", "CYA", "PUR", "YLO", "DAY", "CRE", "PRD", "CHS" };
+  uint32_t strip_colour[COLOUR_ARRAY_LEN] = { strip.Color(255,0,0), strip.Color(0,255,0), strip.Color(0,0,255), strip.Color(0,255,255), strip.Color(255,0,255), strip.Color(255,255,0), strip.Color(255,255,255), strip.Color(0,0,0,255), 0x00 };
 //  uint16_t strip_colour[COLOUR_ARRAY_LEN] = { 0xF800, 0x07E0, 0x001F, 0xFFFF, 0xFFFF, 0x00 };
   int current_colour_index;
   bool rainbow = false;
@@ -117,13 +118,26 @@ class ColourProcessor{
     }
 
     String getColourName() {
-      return colour_name[current_colour_index];
+      return "COL  "+colour_name[current_colour_index];
     }
 
-    uint32_t getColour(int ledPosition) {
-      if (colour_name[current_colour_index] == "prd") {
+    uint32_t getColour(int ledPosition, unsigned long time_now) {
+      if (colour_name[current_colour_index] == "PRD") {
         int pixelHue = firstPixelHue + (ledPosition * 65536L / strip.numPixels());
         return strip.gamma32(strip.ColorHSV(pixelHue));
+      } else if (colour_name[current_colour_index] == "CHS") {
+        if(time_now > colourCycleTime + 400){
+          colourCycleTime=time_now;
+          christmasSeedValue += 1;
+        }
+        
+        if (((christmasSeedValue + ledPosition) % 5) == 0) {
+          return strip.gamma32(strip.Color(255,0,0));
+        } else if (((christmasSeedValue + ledPosition) % 18) == 0) {
+          return strip.gamma32(strip.Color(255,255,255));
+        } else {
+          return strip.gamma32(strip.Color(0,150,0));
+        }
       }
       return strip.gamma32(strip_colour[current_colour_index]);
     }
@@ -133,17 +147,17 @@ ColourProcessor colourProcessor;
 void setup() {
   // These lines are specifically to support the Adafruit Trinket 5V 16 MHz.
   // Any other board, you can remove this part (but no harm leaving it):
-#if defined(_AVR_ATtiny85_) && (F_CPU == 16000000)
+#if defined(__AVR_ATtiny85__) && (F_CPU == 16000000)
   clock_prescale_set(clock_div_1);
 #endif
   // END of Trinket-specific code.
-  Serial.begin(9600);
-  firstPixelHue = 0;
-
-  strip.begin();           // INITIALIZE NeoPixel strip object (REQUIRED)
-  strip.show();            // Turn OFF all pixels ASAP
+  Serial.begin(9600); // Initialise for debug
+  firstPixelHue = 0;              // 
+  brightnessProcessor.setup(3);   // Set default starting brightness
+  colourProcessor.setup(0);       // Set default starting colour
+  strip.begin();                  // INITIALIZE NeoPixel strip object (REQUIRED)
+  strip.show();                   // Turn OFF all pixels ASAP
   strip.setBrightness(brightnessProcessor.getBrightness(0)); // Set BRIGHTNESS to about 1/5 (max = 255)
-  colourProcessor.setup(1);
   tm.setLED(0, 1);
   tm.reset();
   default_display.toCharArray(display_buffer, 9);
@@ -153,14 +167,13 @@ void setup() {
 }
 
 void loop() {
-  // Process user input from the TM1638
-  processTM1638();
-
-  // Display the stuff on the things
-  displayStrip();
+  unsigned long time_now = millis();  // used for input lag and christmas colour cycle
+  processTM1638(time_now);            // Process user input from the TM1638
+  displayStrip(time_now);                     // Display the stuff on the things
+  firstPixelHue += 200;               // Advance just a little along the color wheel for Pride  
 }
 
-void processTM1638() {
+void processTM1638(unsigned long time_now) {
   // Get user input
   uint8_t buttons = tm.readButtons();
   String display_text="";
@@ -168,8 +181,7 @@ void processTM1638() {
   if (buttons != last_button_state) {
     last_button_state = buttons;
     if (buttons != 0x00) {
-      unsigned long time_now = millis();
-      if(time_now > last_valid_button_press + 150){
+      if(time_now > last_valid_button_press + 100){
         last_valid_button_press=time_now;
         changeMode(buttons);
         if (menu_mode == 1) {
@@ -185,7 +197,7 @@ void processTM1638() {
           } else if (bitRead(buttons,7) == 1) {
             colourProcessor.setPreviousColour();
           }
-          display_text=colourProcessor.getColourName()+"   ud";
+          display_text=colourProcessor.getColourName();
         } else if (menu_mode == 3) {
           doLEDs(buttons);
           if (bitRead(buttons,6) == 1) {
@@ -236,20 +248,24 @@ void processValueChange(uint8_t buttons) {
   }
 }
 
-void displayStrip() {
-  firstPixelHue += 20; // Advance just a little along the color wheel
+void displayStrip(unsigned long time_now) {
   int currentPixelPosition=LED_COUNT;
+  bool stripOn=false;
   for(int digit=(DIGIT_COUNT-1); digit>=0; digit--) {
     for (int n=0; n<SEGMENTS_IN_DIGIT; n++) {
       if (digits[current_value[digit]] & (1 << n) ) {
-        ledColour = colourProcessor.getColour(currentPixelPosition);
+        stripOn=true;
       } else {
-        ledColour = strip.Color(0,0,0);
+        stripOn=false;
       }
 
       for(int led=0; led<LEDS_IN_SEGMENT; led++) {
         --currentPixelPosition;
-        strip.setPixelColor(currentPixelPosition, ledColour);
+        if (stripOn) {
+          strip.setPixelColor(currentPixelPosition, colourProcessor.getColour(currentPixelPosition, time_now));
+        } else {
+          strip.setPixelColor(currentPixelPosition, strip.Color(0,0,0));
+        }
       }
     }
   }
