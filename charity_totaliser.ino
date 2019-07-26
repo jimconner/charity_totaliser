@@ -51,7 +51,7 @@ unsigned long colourCycleTime=0;
 
 class BrightnessProcessor{
   int brightness_increment = 10;
-  int min_brightness = 0;
+  int min_brightness = 10;
   int max_brightness = 100;
   int current_brightness_percent = 30;
 
@@ -81,7 +81,7 @@ class BrightnessProcessor{
       for (int i=brightnessAsString.length(); i<3; i++) {
         brightnessAsString=" "+brightnessAsString;
       }
-      return "BHt  " + brightnessAsString;
+      return "brt  " + brightnessAsString;
     }
 
     int getBrightnessPercent() {
@@ -97,7 +97,6 @@ BrightnessProcessor brightnessProcessor;
 class ColourProcessor{
   String colour_name[COLOUR_ARRAY_LEN] = { "RED", "GRE", "BLU", "CYA", "PUR", "YLO", "DAY", "CRE", "PRD", "CHS" };
   uint32_t strip_colour[COLOUR_ARRAY_LEN] = { strip.Color(255,0,0), strip.Color(0,255,0), strip.Color(0,0,255), strip.Color(0,255,255), strip.Color(255,0,255), strip.Color(255,255,0), strip.Color(255,255,255), strip.Color(0,0,0,255), 0x00 };
-//  uint16_t strip_colour[COLOUR_ARRAY_LEN] = { 0xF800, 0x07E0, 0x001F, 0xFFFF, 0xFFFF, 0x00 };
   int current_colour_index;
   bool rainbow = false;
   
@@ -222,7 +221,6 @@ void processTM1638(unsigned long time_now) {
             display_text+=current_value[i];
           }
         } else if (menu_mode == 2) {
-          doLEDs(buttons);
           if (bitRead(buttons,6) == 1) {
             colourProcessor.setNextColour();
           } else if (bitRead(buttons,7) == 1) {
@@ -230,7 +228,6 @@ void processTM1638(unsigned long time_now) {
           }
           display_text=colourProcessor.getColourName();
         } else if (menu_mode == 3) {
-          doLEDs(buttons);
           if (bitRead(buttons,6) == 1) {
             brightnessProcessor.setNextBrightness();
           } else if (bitRead(buttons,7) == 1) {
@@ -238,7 +235,6 @@ void processTM1638(unsigned long time_now) {
           }
           display_text=brightnessProcessor.getBrightnessName();
         } else {
-          doLEDs(0x00);
           display_text=default_display;
         }
         display_text.toCharArray(display_buffer, 9);
@@ -267,7 +263,6 @@ void changeMode(uint8_t buttons) {
 }
 
 void processValueChange(uint8_t buttons) {
-  doLEDs(buttons);
   for (int valuePos = 3; valuePos<8; valuePos++) {
     if (bitRead(buttons,valuePos) == 1) {
       if (current_value[valuePos-3] < 9) {
