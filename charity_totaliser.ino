@@ -1,5 +1,5 @@
 #include <Adafruit_NeoPixel.h>
-#include <TM1638plus.h>
+#include "TM1638plus.h"
 #include <EEPROM.h>
 #ifdef __AVR__
  #include <avr/power.h> // Required for 16 MHz Adafruit Trinket
@@ -7,24 +7,31 @@
 
 // Which pin on the Arduino is connected to the NeoPixels?
 // On a Trinket or Gemma we suggest changing this to 1:
-#define  LED_PIN    2
-#define  STROBE_TM  3
-#define  CLOCK_TM   4
-#define  DIO_TM     5
-#define  STRIP_PIN  6
+#define  LED_PIN    23
+#define  STROBE_TM  18
+#define  CLOCK_TM   5
+#define  DIO_TM     17
+#define  STRIP_PIN  32
+
+//#define  LED_PIN    2
+//#define  STROBE_TM  3
+//#define  CLOCK_TM   4
+//#define  DIO_TM     5
+//#define  STRIP_PIN  6
 
 #define COLOUR_ARRAY_LEN 10
 #define BRIGHTNESS_ARRAY_LEN 10
 
 // Number Config:
-#define LEDS_IN_SEGMENT   1
+#define LEDS_IN_SEGMENT   8
 #define SEGMENTS_IN_DIGIT 7
+#define MAX_DIGITS        5
 #define DIGIT_COUNT       5
 #define LED_COUNT LEDS_IN_SEGMENT * SEGMENTS_IN_DIGIT * DIGIT_COUNT
 Adafruit_NeoPixel number_strip(LED_COUNT, LED_PIN, NEO_GRBW + NEO_KHZ800);
 
-// Strip Config:
-#define STRIP_LED_COUNT   8
+//// Strip Config:
+#define STRIP_LED_COUNT   81
 Adafruit_NeoPixel strip(STRIP_LED_COUNT, STRIP_PIN, NEO_GRBW + NEO_KHZ800);
 int currentStripPosition;
 bool goingUp;
@@ -32,7 +39,7 @@ unsigned long stripCycleTime;
 
 // TM Config:
 TM1638plus tm(STROBE_TM, CLOCK_TM , DIO_TM);
-uint8_t digits[] = { 0x3F, 0x21, 0x76, 0x73, 0x69, 0x5B, 0x5F, 0x31, 0x7F, 0x7B};
+uint8_t digits[10] = { 0x3F, 0x21, 0x76, 0x73, 0x69, 0x5B, 0x5F, 0x31, 0x7F, 0x7B};
 String default_display=" HELLO  ";
 uint8_t last_button_state = 0x00;
 bool updatedisplay=false;
@@ -51,7 +58,7 @@ class BrightnessProcessor{
   int brightness_increment = 10;
   int min_brightness = 10;
   int max_brightness = 100;
-  int current_brightness_percent = 30;
+  int current_brightness_percent = 10;
 
   public:
     void setup(int percent) {
@@ -103,8 +110,8 @@ class BrightnessProcessor{
 BrightnessProcessor brightnessProcessor;
 
 class ColourProcessor{
-  String colour_name[COLOUR_ARRAY_LEN] = { "RED", "GRE", "BLU", "CYA", "PUR", "YLO", "DAY", "CRE", "PRD", "CHS" };
-  uint32_t strip_colour[COLOUR_ARRAY_LEN] = { strip.Color(255,0,0), strip.Color(0,255,0), strip.Color(0,0,255), strip.Color(0,255,255), strip.Color(255,0,255), strip.Color(255,255,0), strip.Color(255,255,255), strip.Color(0,0,0,255), 0x00 };
+  String colour_name[COLOUR_ARRAY_LEN] = { "RED", "GRE", "BLU", "CYA", "PUR", "YLO", "DAY", "CRE", "PRD", "CHS"  };
+  uint32_t strip_colour[COLOUR_ARRAY_LEN] = { number_strip.Color(255,0,0), number_strip.Color(0,255,0), number_strip.Color(0,0,255), number_strip.Color(0,255,255), number_strip.Color(255,0,255), number_strip.Color(255,255,0), number_strip.Color(255,255,255), number_strip.Color(0,0,0,255), 0x00 };
   int current_colour_index;
   bool rainbow = false;
   String displayPrefix;
@@ -135,6 +142,7 @@ class ColourProcessor{
     }
 
     String getDisplayText() {
+      Serial.println(displayPrefix);
       return displayPrefix + colour_name[current_colour_index];
     }
 
@@ -145,22 +153,21 @@ class ColourProcessor{
     uint32_t getColour(int ledPosition, unsigned long time_now) {
       if (colour_name[current_colour_index] == "PRD") {
         int pixelHue = firstPixelHue + (ledPosition * 65536L / number_strip.numPixels());
-        return strip.gamma32(strip.ColorHSV(pixelHue));
+        return number_strip.gamma32(number_strip.ColorHSV(pixelHue));
       } else if (colour_name[current_colour_index] == "CHS") {
         if(time_now > colourCycleTime + 400){
           colourCycleTime=time_now;
           christmasSeedValue += 1;
         }
-        
         if (((christmasSeedValue + ledPosition) % 5) == 0) {
-          return strip.gamma32(strip.Color(255,0,0));
+          return number_strip.gamma32(number_strip.Color(255,0,0));
         } else if (((christmasSeedValue + ledPosition) % 18) == 0) {
-          return strip.gamma32(strip.Color(255,255,255));
+          return number_strip.gamma32(number_strip.Color(255,255,255));
         } else {
-          return strip.gamma32(strip.Color(0,150,0));
+          return number_strip.gamma32(number_strip.Color(0,150,0));
         }
       }
-      return strip.gamma32(strip_colour[current_colour_index]);
+      return number_strip.gamma32(strip_colour[current_colour_index]);
     }
 
     void processMenuSelection(uint8_t buttons){
@@ -176,12 +183,12 @@ ColourProcessor stripOnColour;
 ColourProcessor stripOffColour;
 
 class ValueProcessor{
-  int value[DIGIT_COUNT];
+  int value[MAX_DIGITS];
   String displayPrefix;
   
   public:
     void setup() {
-      for (int i=0; i<DIGIT_COUNT; i++) {
+      for (int i=0; i<MAX_DIGITS; i++) {
         value[i]=0;
       }
     }
@@ -203,12 +210,13 @@ class ValueProcessor{
     }
 
     String getDisplayText() {
+      Serial.println(displayPrefix);
       return displayPrefix + getValueAsString();
     }
 
     String getValueAsString() {
       String numberAsString="";
-      for (int i=0; i< 5; i++) {
+      for (int i=0; i< MAX_DIGITS; i++) {
         numberAsString+=value[i];
       }
       return numberAsString;
@@ -245,7 +253,7 @@ void setup() {
   loadData();                         // load data from the eeprom
   Serial.begin(9600);             // Initialise for debug
   firstPixelHue = 0;              // 
-  number_strip.begin();                  // INITIALIZE NeoPixel strip object (REQUIRED)
+  number_strip.begin();           // INITIALIZE NeoPixel strip object (REQUIRED)
   number_strip.setBrightness(brightnessProcessor.getBrightness());  
   strip.begin();                  // INITIALIZE NeoPixel strip object (REQUIRED)
   resetStrip();
@@ -273,12 +281,12 @@ void loadData() {
     stripOnColour.setup(EEPROM.read(12));
     stripOffColour.setup(EEPROM.read(13));
   } else {
-    brightnessProcessor.setup(30);  // Set default starting brightness
+    brightnessProcessor.setup(10);  // Set default starting brightness
+    currentAmount.setup();
+    targetAmount.setup();
     digitColour.setup(0);       // Set default starting colour
     stripOnColour.setup(0);       // Set default starting colour
     stripOffColour.setup(2);       // Set default starting colour
-    currentAmount.setup();
-    targetAmount.setup();
   }
 }
 
@@ -303,10 +311,8 @@ void loop() {
   unsigned long time_now = millis();  // used for input lag and christmas colour cycle
   processTM1638(time_now);            // Process user input from the TM1638
   displayNumbers(time_now);           // Display the stuff on the things
-  int percentage = (currentAmount.getValue()/(targetAmount.getValue()/100));
-  displayStrip(time_now, percentage); // Display the bouncing strip
+  displayStrip(time_now); // Display the bouncing strip
   firstPixelHue += 200;               // Advance just a little along the color wheel for Pride  
-  saveData();                         // Save data to the eeprom
 }
 
 void processTM1638(unsigned long time_now) {
@@ -317,7 +323,9 @@ void processTM1638(unsigned long time_now) {
   if (buttons != last_button_state) {
     last_button_state = buttons;
     if (buttons != 0x00) {
-      if(time_now > last_valid_button_press + 100){
+      Serial.print("Processing button press : ");
+      Serial.println(buttons);
+       if(time_now > last_valid_button_press + 100){
         last_valid_button_press=time_now;
         if (bitRead(buttons,0) == 1) {
           if (menu_mode == 6) {
@@ -326,6 +334,8 @@ void processTM1638(unsigned long time_now) {
             menu_mode++;  
           }
         }
+        Serial.print("Menu mode is : ");
+        Serial.println(menu_mode);
         if (menu_mode == 1) {
           currentAmount.processMenuSelection(buttons);
           display_text=currentAmount.getDisplayText();
@@ -348,9 +358,9 @@ void processTM1638(unsigned long time_now) {
         } else {
           display_text=default_display;
         }
-        Serial.println(display_text);
         display_text.toCharArray(display_buffer, 9);
         tm.displayText(display_buffer);
+        saveData();                         // Save data to the eeprom
       }
     }
   }
@@ -380,36 +390,50 @@ void displayNumbers(unsigned long time_now) {
         if (stripOn) {
           number_strip.setPixelColor(currentPixelPosition, digitColour.getColour(currentPixelPosition, time_now));
         } else {
-          number_strip.setPixelColor(currentPixelPosition, strip.Color(0,0,0));
+          number_strip.setPixelColor(currentPixelPosition, number_strip.Color(0,0,0));
         }
       }
     }
   }
-  number_strip.show();
+  portDISABLE_INTERRUPTS();
+  number_strip.show();                          //  Update strip to match
+  portENABLE_INTERRUPTS();  
 }
 
-void displayStrip(unsigned long time_now, int displayPercent) {
-  int wait = 500;
+void displayStrip(unsigned long time_now) {
+  int displayPercent = 50;
+  if (currentAmount.getValue() > 0 && targetAmount.getValue() > 0){
+    displayPercent = (currentAmount.getValue()/(targetAmount.getValue()/100));    
+  }
+
   int maxLedOn = (strip.numPixels()*displayPercent/100)-1;
 
-  if(time_now > stripCycleTime + 200){
+  if(time_now > stripCycleTime + 50){
     stripCycleTime=time_now;
     if (goingUp) {
       currentStripPosition++;
       goingUp = (currentStripPosition <= maxLedOn);
-      strip.setPixelColor((currentStripPosition-1), stripOnColour.getColour(currentStripPosition, stripCycleTime));         //  Set pixel's color (in RAM)
+      strip.setPixelColor((currentStripPosition-1), stripOnColour.getColour(currentStripPosition,stripCycleTime));         //  Set pixel's color (in RAM)
     } else {
       currentStripPosition--;
       goingUp = (currentStripPosition < 1);
-      strip.setPixelColor((currentStripPosition-1), stripOffColour.getColour(currentStripPosition, stripCycleTime));         //  Set pixel's color (in RAM)
+      strip.setPixelColor((currentStripPosition-1), stripOffColour.getColour(currentStripPosition,stripCycleTime));         //  Set pixel's color (in RAM)
     }
+    portDISABLE_INTERRUPTS();
+    strip.show();                          //  Update strip to match
+    portENABLE_INTERRUPTS();  
   }
-  strip.show();                          //  Update strip to match
 }
 
 void resetStrip() {
   currentStripPosition=0;
   goingUp=true;
   stripCycleTime=0;
-  strip.fill(stripOffColour.getColour(0, millis()));
+  strip.fill(stripOffColour.getColour(currentStripPosition,stripCycleTime));
+}
+
+void safeShow() {
+    portDISABLE_INTERRUPTS();
+    number_strip.show();                          //  Update strip to match
+    portENABLE_INTERRUPTS();  
 }
