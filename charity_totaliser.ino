@@ -1,6 +1,9 @@
+#include <Esp32WifiManager.h>
+
 #include <Adafruit_NeoPixel.h>
 #include "TM1638plus.h"
 #include <EEPROM.h>
+
 #ifdef __AVR__
  #include <avr/power.h> // Required for 16 MHz Adafruit Trinket
 #endif
@@ -244,6 +247,9 @@ void setup() {
 #if defined(__AVR_ATtiny85__) && (F_CPU == 16000000)
   clock_prescale_set(clock_div_1);
 #endif
+  btStop();
+  WiFi.mode(WIFI_OFF);
+  touch_pad_intr_disable( );
   // END of Trinket-specific code.
   digitColour.setDisplayPrefix("COL- ");
   stripOnColour.setDisplayPrefix("ON - ");
@@ -395,9 +401,10 @@ void displayNumbers(unsigned long time_now) {
       }
     }
   }
+  delay(1);
   portDISABLE_INTERRUPTS();
   number_strip.show();                          //  Update strip to match
-  portENABLE_INTERRUPTS();  
+  portENABLE_INTERRUPTS();
 }
 
 void displayStrip(unsigned long time_now) {
@@ -419,9 +426,11 @@ void displayStrip(unsigned long time_now) {
       goingUp = (currentStripPosition < 1);
       strip.setPixelColor((currentStripPosition-1), stripOffColour.getColour(currentStripPosition,stripCycleTime));         //  Set pixel's color (in RAM)
     }
+    delay(1);
     portDISABLE_INTERRUPTS();
-    strip.show();                          //  Update strip to match
-    portENABLE_INTERRUPTS();  
+    strip.show();
+    portENABLE_INTERRUPTS();
+    //  Update strip to match
   }
 }
 
@@ -430,10 +439,4 @@ void resetStrip() {
   goingUp=true;
   stripCycleTime=0;
   strip.fill(stripOffColour.getColour(currentStripPosition,stripCycleTime));
-}
-
-void safeShow() {
-    portDISABLE_INTERRUPTS();
-    number_strip.show();                          //  Update strip to match
-    portENABLE_INTERRUPTS();  
 }
