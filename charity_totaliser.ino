@@ -249,7 +249,7 @@ void setup() {
 #endif
   btStop();
   WiFi.mode(WIFI_OFF);
-  touch_pad_intr_disable( );
+//  touch_pad_intr_disable( );
   // END of Trinket-specific code.
   digitColour.setDisplayPrefix("COL- ");
   stripOnColour.setDisplayPrefix("ON - ");
