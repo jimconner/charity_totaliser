@@ -34,7 +34,7 @@
 Adafruit_NeoPixel number_strip(LED_COUNT, LED_PIN, NEO_GRBW + NEO_KHZ800);
 
 //// Strip Config:
-#define STRIP_LED_COUNT   81
+#define STRIP_LED_COUNT   60
 Adafruit_NeoPixel strip(STRIP_LED_COUNT, STRIP_PIN, NEO_GRBW + NEO_KHZ800);
 int currentStripPosition;
 bool goingUp;
@@ -249,7 +249,7 @@ void setup() {
 #endif
   btStop();
   WiFi.mode(WIFI_OFF);
-//  touch_pad_intr_disable( );
+  //touch_pad_intr_disable( );
   // END of Trinket-specific code.
   digitColour.setDisplayPrefix("COL- ");
   stripOnColour.setDisplayPrefix("ON - ");
